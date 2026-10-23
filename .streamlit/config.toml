@@ -1,0 +1,7 @@
+[server]
+# Only reachable from this machine (do not expose an internal ops tool on the network)
+address = "localhost"
+port = 8501
+
+[browser]
+gatherUsageStats = false
