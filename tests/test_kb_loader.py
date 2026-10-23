@@ -35,12 +35,15 @@ def test_real_knowledge_base_is_valid():
     assert len({entry.id for entry in entries}) == len(entries)
 
 
-def test_search_text_contains_symptoms_and_keywords_but_not_resolution():
+def test_search_chunks_cover_title_symptoms_keywords_but_not_resolution():
     entry = load_knowledge_base()[0]
-    text = entry.search_text()
-    assert entry.symptoms[0] in text
-    assert entry.keywords[0] in text
-    assert entry.resolution_steps[0] not in text
+    chunks = entry.search_chunks()
+    texts = [text for _, text in chunks]
+    assert entry.title in texts
+    assert all(symptom in texts for symptom in entry.symptoms)
+    assert any(entry.keywords[0] in text for text in texts)
+    assert not any(entry.resolution_steps[0] in text for text in texts)
+    assert len({chunk_id for chunk_id, _ in chunks}) == len(chunks)
 
 
 def test_missing_file_raises(tmp_path):

@@ -47,18 +47,18 @@ class KBEntry:
     prerequisites: list[str]
     related_ids: list[str]
 
-    def search_text(self) -> str:
-        """Text that gets embedded for retrieval.
+    def search_chunks(self) -> list[tuple[str, str]]:
+        """Short texts that get embedded for retrieval, as (chunk_id, text) pairs.
 
         Users describe what they *see* (symptoms, error codes), not the fix,
-        so we embed the title, category, symptoms and keywords only.
+        so only the title, each symptom, and the keywords are embedded.
+        Each is a separate chunk: a short query matches a short symptom much
+        better than one long block of text (measured in calibration).
         """
-        return "\n".join([
-            self.title,
-            f"Category: {self.category}",
-            "Symptoms: " + "; ".join(self.symptoms),
-            "Keywords: " + ", ".join(self.keywords),
-        ])
+        chunks = [(f"{self.id}::title", self.title)]
+        chunks += [(f"{self.id}::symptom-{i}", symptom) for i, symptom in enumerate(self.symptoms)]
+        chunks.append((f"{self.id}::keywords", ", ".join(self.keywords)))
+        return chunks
 
 
 def _is_list_of_strings(value) -> bool:
@@ -163,5 +163,6 @@ if __name__ == "__main__":
         teams = ", ".join(rule.team for rule in entry.escalation)
         print(f"  {entry.id}  [{entry.category:<14}] {entry.title}")
         print(f"          escalation: {teams}")
-    print("\nExample search text (what gets embedded) for", entries[0].id)
-    print("  " + entries[0].search_text().replace("\n", "\n  "))
+    print("\nExample chunks (what gets embedded) for", entries[0].id)
+    for chunk_id, text in entries[0].search_chunks():
+        print(f"  {chunk_id:<20} {text}")

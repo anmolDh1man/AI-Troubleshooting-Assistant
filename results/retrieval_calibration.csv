@@ -1,0 +1,34 @@
+type,query,expected_id,top1_id,top1_score,top2_id,top2_score,top1_correct,in_top3
+known,The payment API is returning a 500 error,KB-001,KB-001,0.8636,KB-002,0.5427,True,True
+paraphrase,checkout throws internal server error for all merchants,KB-001,KB-001,0.6484,KB-004,0.4996,True,True
+paraphrase,getting lots of 5xx from payments endpoint since the deploy,KB-001,KB-001,0.4831,KB-003,0.3276,True,True
+known,requests to the API are timing out after 30 seconds,KB-002,KB-002,0.775,KB-005,0.7333,True,True
+paraphrase,merchant gets 504 gateway timeout,KB-002,KB-002,0.74,KB-005,0.5835,True,True
+known,application can't connect to the database,KB-003,KB-003,0.7935,KB-007,0.4427,True,True
+paraphrase,too many connections error in the logs,KB-003,KB-003,0.5573,KB-002,0.4826,True,True
+known,merchant getting 401 unauthorized when calling the API,KB-004,KB-004,0.7442,KB-011,0.5906,True,True
+paraphrase,invalid API key error after key rotation,KB-004,KB-004,0.6619,KB-002,0.3656,True,True
+known,API responses are very slow today,KB-005,KB-005,0.9054,KB-002,0.5746,True,True
+paraphrase,p99 latency alert fired for the transactions endpoint,KB-005,KB-005,0.7695,KB-008,0.3864,True,True
+known,website shows 503 service unavailable,KB-006,KB-006,0.8878,KB-002,0.5507,True,True
+paraphrase,pods keep restarting in crashloopbackoff,KB-006,KB-006,0.9619,KB-001,0.2677,True,True
+known,unknown host error when calling the bank gateway,KB-007,KB-007,0.594,KB-001,0.4102,True,True
+paraphrase,"cannot reach partner server, no route to host",KB-007,KB-007,0.5883,KB-008,0.5045,True,True
+known,SSL handshake failed when connecting to partner,KB-008,KB-008,0.7387,KB-004,0.4175,True,True
+paraphrase,certificate expired on our domain,KB-008,KB-008,0.595,KB-004,0.3448,True,True
+known,lots of cards getting declined suddenly,KB-009,KB-009,0.7095,KB-004,0.3435,True,True
+paraphrase,"approval rate dropped, issuer response code 91",KB-009,KB-009,0.5938,KB-011,0.4074,True,True
+known,settlement file was not generated last night,KB-010,KB-010,0.7523,KB-002,0.3225,True,True
+paraphrase,EOD batch job failed,KB-010,KB-010,0.5599,KB-012,0.5412,True,True
+known,customer was charged but order still shows unpaid,KB-011,KB-011,0.9501,KB-002,0.504,True,True
+paraphrase,merchant did not get the webhook callback,KB-011,KB-011,0.866,KB-004,0.5806,True,True
+known,no space left on device error,KB-012,KB-012,0.8788,KB-004,0.2317,True,True
+paraphrase,disk usage alert at 95 percent on app server,KB-012,KB-012,0.8105,KB-001,0.4216,True,True
+off_topic,the printer is out of paper,-,KB-012,0.221,KB-010,0.2016,,
+off_topic,how do I apply for leave,-,KB-009,0.1929,KB-010,0.1713,,
+off_topic,my laptop keyboard is not working,-,KB-004,0.2134,KB-011,0.2065,,
+off_topic,what is the weather in Pune,-,KB-005,0.0948,KB-003,0.0708,,
+near_domain,Kafka consumer lag is increasing,-,KB-005,0.4152,KB-007,0.3081,,
+near_domain,Redis cache memory eviction is high,-,KB-001,0.2969,KB-009,0.2864,,
+near_domain,how to reset my email password,-,KB-004,0.2206,KB-008,0.1543,,
+near_domain,Kubernetes node upgrade procedure,-,KB-006,0.3015,KB-008,0.1612,,

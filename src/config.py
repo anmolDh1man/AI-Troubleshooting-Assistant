@@ -14,4 +14,9 @@ CHROMA_DIR = PROJECT_ROOT / "chroma_db"
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 GENERATOR = os.getenv("GENERATOR", "template")
 TOP_K = int(os.getenv("TOP_K", "3"))
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.40"))
+# Calibrated with scripts/calibrate_retrieval.py (see results/retrieval_calibration.csv):
+#   score >= HIGH            -> confident match, answer from the entry
+#   LOW <= score < HIGH      -> possible match, show it with a warning and ask for details
+#   score < LOW              -> not covered by the knowledge base
+HIGH_CONFIDENCE_THRESHOLD = float(os.getenv("HIGH_CONFIDENCE_THRESHOLD", "0.45"))
+LOW_CONFIDENCE_THRESHOLD = float(os.getenv("LOW_CONFIDENCE_THRESHOLD", "0.30"))
