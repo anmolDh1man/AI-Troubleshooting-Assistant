@@ -85,7 +85,7 @@
         "APIs that read or write data fail while static or health endpoints still work",
         "Sudden increase in HTTP 500 errors linked to database calls"
       ],
-      "keywords": ["database", "db", "connection pool", "too many connections", "connection refused", "jdbc", "sql", "db down", "cannot connect to database"],
+      "keywords": ["database", "db", "connection pool", "too many connections", "connection refused", "jdbc", "sql", "db down", "cannot connect to database", "hikaricp", "connection is not available"],
       "diagnostic_checks": [
         "Check the database monitoring dashboard: is the database up, and what are its CPU, memory, and active connection counts?",
         "Compare active connections with the configured maximum connections and the application pool size.",

@@ -44,6 +44,21 @@ def test_matched_text_comes_from_the_returned_entry(retriever):
     assert result.matched_text in chunk_texts
 
 
+@pytest.mark.parametrize("query", [
+    # Held-out eval case E04 failed in the Phase 5 baseline (retrieved KB-002, timeouts).
+    "HikariCP says connection is not available, request timed out after 30000ms",
+    # Real HikariCP log line format, not part of any evaluation set.
+    "HikariPool-1 - Connection is not available, request timed out after 30000ms.",
+])
+def test_regression_hikaricp_pool_timeout_maps_to_database_entry(retriever, query):
+    assert retriever.search(query)[0].entry.id == "KB-003"
+
+
+def test_plain_request_timeout_still_maps_to_timeout_entry(retriever):
+    # Guard: adding pool-timeout keywords to KB-003 must not pull generic timeouts away from KB-002.
+    assert retriever.search("requests to the API are timing out after 30 seconds")[0].entry.id == "KB-002"
+
+
 def test_empty_query_is_rejected(retriever):
     with pytest.raises(ValueError):
         retriever.search("   ")

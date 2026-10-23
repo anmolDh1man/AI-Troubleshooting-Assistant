@@ -2,8 +2,13 @@
 
 Run from the project root:  python -m tests.run_eval
 Writes results/eval_results.csv and results/eval_summary.md
+
+Use --tag to keep an earlier run (e.g. a committed baseline) untouched:
+    python -m tests.run_eval --tag after_e04_fix
+writes results/eval_results_after_e04_fix.csv and results/eval_summary_after_e04_fix.md
 """
 
+import argparse
 import csv
 import json
 from collections import defaultdict
@@ -16,8 +21,7 @@ from src.kb_loader import load_knowledge_base
 from src.retriever import Retriever
 
 CASES_PATH = PROJECT_ROOT / "tests" / "eval_cases.json"
-CSV_PATH = PROJECT_ROOT / "results" / "eval_results.csv"
-SUMMARY_PATH = PROJECT_ROOT / "results" / "eval_summary.md"
+RESULTS_DIR = PROJECT_ROOT / "results"
 LONG_INPUT = "Payment API error with stack trace. " * 50  # ~1,800 characters
 
 
@@ -72,6 +76,13 @@ def check_case(case: dict, response) -> list[str]:
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--tag", help="suffix for output files, so earlier results are not overwritten")
+    args = parser.parse_args()
+    suffix = f"_{args.tag}" if args.tag else ""
+    csv_path = RESULTS_DIR / f"eval_results{suffix}.csv"
+    summary_path = RESULTS_DIR / f"eval_summary{suffix}.md"
+
     cases = json.loads(CASES_PATH.read_text(encoding="utf-8"))["cases"]
     retriever = Retriever(load_knowledge_base())
     assistants = {
@@ -121,7 +132,7 @@ def main():
     summary = [
         "# Evaluation summary",
         "",
-        f"Run: {datetime.now():%Y-%m-%d %H:%M} · Cases: {len(rows)} · Generator: template (no LLM)",
+        f"Run: {datetime.now():%Y-%m-%d %H:%M} · Tag: {args.tag or 'baseline'} · Cases: {len(rows)} · Generator: template (no LLM)",
         "",
         f"**Overall: {passed}/{len(rows)} passed**",
         "",
@@ -140,13 +151,13 @@ def main():
     ]
     print("\n" + "\n".join(summary))
 
-    CSV_PATH.parent.mkdir(exist_ok=True)
-    with CSV_PATH.open("w", newline="", encoding="utf-8") as f:
+    RESULTS_DIR.mkdir(exist_ok=True)
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
-    SUMMARY_PATH.write_text("\n".join(summary) + "\n", encoding="utf-8")
-    print(f"\nSaved: {CSV_PATH.relative_to(PROJECT_ROOT)}, {SUMMARY_PATH.relative_to(PROJECT_ROOT)}")
+    summary_path.write_text("\n".join(summary) + "\n", encoding="utf-8")
+    print(f"\nSaved: {csv_path.relative_to(PROJECT_ROOT)}, {summary_path.relative_to(PROJECT_ROOT)}")
 
 
 if __name__ == "__main__":
