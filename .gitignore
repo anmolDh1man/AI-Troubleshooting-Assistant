@@ -17,3 +17,5 @@ chroma_db/
 .idea/
 Thumbs.db
 .DS_Store
+# Personal presentation and interview preparation
+docs/
