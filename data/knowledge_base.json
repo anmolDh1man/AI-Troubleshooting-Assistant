@@ -1,0 +1,419 @@
+{
+  "metadata": {
+    "name": "Sample L1/L2 Troubleshooting Knowledge Base",
+    "version": "1.0",
+    "disclaimer": "Simulated sample data created for an internship assessment. These are NOT real production incidents or official runbooks of any company. Thresholds, team names, and procedures are illustrative assumptions."
+  },
+  "entries": [
+    {
+      "id": "KB-001",
+      "title": "Payment API returning HTTP 500 Internal Server Error",
+      "category": "Application",
+      "symptoms": [
+        "Payment API (for example POST /v1/payments) returns HTTP 500",
+        "Spike in 5xx error rate on the API monitoring dashboard",
+        "Merchants report 'payment failed' or 'something went wrong' at checkout",
+        "Application logs show unhandled exceptions or stack traces"
+      ],
+      "keywords": ["500", "5xx", "internal server error", "server error", "payment api error", "checkout failing", "exception", "stack trace", "transaction failure"],
+      "diagnostic_checks": [
+        "Confirm scope on the monitoring dashboard: are all requests failing, or only one merchant, endpoint, or payment method?",
+        "Search application logs around the first error timestamp for exceptions and stack traces; note the request or correlation IDs.",
+        "Check for recent changes in the last 24 hours: deployments, configuration changes, or feature-flag updates.",
+        "Check the health of downstream dependencies on dashboards: database, cache, authentication service, and card network or acquirer gateway.",
+        "Check application host or pod resources: CPU, memory, thread pools, and recent restarts or OOMKilled events."
+      ],
+      "resolution_steps": [
+        "If errors began right after a deployment, share the evidence (timestamps, error rate, sample request IDs) with the release owner for a rollback decision.",
+        "If a downstream dependency is failing, follow that dependency's knowledge-base entry (for example KB-003 for database connection failures).",
+        "If the failure is limited to one merchant or payload pattern, capture masked sample requests and request IDs for L2 analysis.",
+        "Never copy full card numbers (PAN) or other sensitive cardholder data into tickets or chat."
+      ],
+      "requires_approval": [
+        "Rolling back a production deployment",
+        "Restarting application services or pods",
+        "Changing production configuration or feature flags"
+      ],
+      "escalation": [
+        {"team": "L2 Application Support", "when": "5xx error rate stays above 2% for more than 5 minutes, or multiple merchants report payment failures."},
+        {"team": "L1 Operations / Command Center", "when": "Payments are failing platform-wide: declare a major incident and open an incident bridge."}
+      ],
+      "prerequisites": ["Read access to the log platform and APM dashboards", "Access to deployment and change history"],
+      "related_ids": ["KB-003", "KB-006"]
+    },
+    {
+      "id": "KB-002",
+      "title": "API requests timing out (HTTP 504 Gateway Timeout)",
+      "category": "Application",
+      "symptoms": [
+        "Clients receive HTTP 504 Gateway Timeout or 'request timed out' errors",
+        "Requests hang and then fail after a fixed time such as 30 or 60 seconds",
+        "Load balancer or API gateway logs show upstream timeout errors",
+        "Payment status is unknown to the merchant because the response never arrived"
+      ],
+      "keywords": ["timeout", "timed out", "504", "gateway timeout", "upstream timeout", "request hangs", "no response", "read timeout"],
+      "diagnostic_checks": [
+        "Check API gateway or load balancer logs to see which upstream service is timing out.",
+        "Compare the configured timeout values of the client, gateway, and backend service.",
+        "Check backend response-time percentiles (p95/p99) on the APM dashboard for the affected endpoint.",
+        "Check whether a slow downstream call (database query, third-party gateway, or card network) is causing the delay.",
+        "For payment requests, verify the final transaction status using the request ID before advising any retry, to avoid duplicate charges."
+      ],
+      "resolution_steps": [
+        "If one downstream dependency is slow, follow its knowledge-base entry (KB-003 for database, KB-007 for network).",
+        "Advise merchants to use the transaction status-check API before retrying a timed-out payment.",
+        "Share APM traces of the slow requests with L2 Application Support for code- or query-level analysis."
+      ],
+      "requires_approval": [
+        "Changing timeout values on the gateway or service",
+        "Scaling services up or down in production"
+      ],
+      "escalation": [
+        {"team": "L2 Application Support", "when": "Timeouts affect more than 1% of requests for over 5 minutes or a critical payment endpoint."},
+        {"team": "DevOps / Infrastructure Team", "when": "Timeouts originate at the load balancer or gateway layer, or affect multiple unrelated services."}
+      ],
+      "prerequisites": ["Access to API gateway logs and APM traces"],
+      "related_ids": ["KB-005", "KB-003", "KB-011"]
+    },
+    {
+      "id": "KB-003",
+      "title": "Database connection failures or connection pool exhausted",
+      "category": "Database",
+      "symptoms": [
+        "Application logs show 'could not connect to database', 'connection refused', or 'connection timed out'",
+        "Errors such as 'connection pool exhausted', 'too many connections', or 'unable to acquire JDBC connection'",
+        "APIs that read or write data fail while static or health endpoints still work",
+        "Sudden increase in HTTP 500 errors linked to database calls"
+      ],
+      "keywords": ["database", "db", "connection pool", "too many connections", "connection refused", "jdbc", "sql", "db down", "cannot connect to database"],
+      "diagnostic_checks": [
+        "Check the database monitoring dashboard: is the database up, and what are its CPU, memory, and active connection counts?",
+        "Compare active connections with the configured maximum connections and the application pool size.",
+        "Look for long-running queries or locks reported by the database monitoring tool (read-only views).",
+        "Check whether the failures started with a deployment, a traffic spike, or a scheduled batch job.",
+        "Verify network reachability from the application host to the database host and port (see KB-007)."
+      ],
+      "resolution_steps": [
+        "If the database is unreachable or down, escalate immediately to the Database Team with timestamps and error messages.",
+        "If the pool is exhausted because of a traffic spike, share connection metrics with L2 Application Support and the Database Team.",
+        "If a specific long-running query or lock is identified, provide its details to the Database Team for a decision."
+      ],
+      "requires_approval": [
+        "Terminating database sessions or killing queries",
+        "Restarting the database or application services",
+        "Changing connection pool or database configuration"
+      ],
+      "escalation": [
+        {"team": "Database Team", "when": "Database is unreachable, connections are at the maximum limit, or blocking locks or long-running queries are found."},
+        {"team": "L2 Application Support", "when": "The database is healthy but the application pool is exhausted or leaking connections."}
+      ],
+      "prerequisites": ["Read-only access to database monitoring dashboards"],
+      "related_ids": ["KB-001", "KB-007"]
+    },
+    {
+      "id": "KB-004",
+      "title": "Authentication failures (HTTP 401 Unauthorized or 403 Forbidden)",
+      "category": "Security",
+      "symptoms": [
+        "API returns HTTP 401 Unauthorized or 403 Forbidden",
+        "Errors such as 'invalid API key', 'token expired', or 'invalid signature'",
+        "A merchant or partner suddenly cannot call the API after working earlier",
+        "Users cannot log in to the merchant dashboard"
+      ],
+      "keywords": ["401", "403", "unauthorized", "forbidden", "authentication", "auth failure", "login failed", "invalid api key", "token expired", "access denied", "invalid signature"],
+      "diagnostic_checks": [
+        "Check whether failures affect one merchant or client, or all clients (scope).",
+        "Check authentication service logs for the specific reason: expired token, invalid key, wrong environment, or IP not allowlisted.",
+        "Confirm the client is using the correct environment's credentials (for example UAT keys against production).",
+        "Check whether API keys, certificates, or secrets were recently rotated.",
+        "Check the health of the authentication or identity service on the monitoring dashboard."
+      ],
+      "resolution_steps": [
+        "If only one merchant is affected and the cause is expired or wrong credentials, guide them through the standard credential-renewal process.",
+        "If all clients are failing, treat it as an authentication service issue and escalate.",
+        "If the logs suggest brute-force attempts or credential misuse, report it to the Security / IAM Team; do not share key details in open channels."
+      ],
+      "requires_approval": [
+        "Regenerating or revoking API keys",
+        "Changing IP allowlists or access policies"
+      ],
+      "escalation": [
+        {"team": "Security / IAM Team", "when": "Suspected credential compromise, brute-force attempts, or a platform-wide authentication service failure."},
+        {"team": "L2 Application Support", "when": "A single merchant's integration has a signature or token generation problem."}
+      ],
+      "prerequisites": ["Access to authentication service logs (masked)"],
+      "related_ids": ["KB-008"]
+    },
+    {
+      "id": "KB-005",
+      "title": "High API latency (slow responses but requests succeed)",
+      "category": "Performance",
+      "symptoms": [
+        "API responses are slow but eventually succeed",
+        "p95 or p99 latency alert triggered on the APM dashboard",
+        "Merchants report slow checkout or long payment processing time",
+        "Latency rises during peak traffic hours"
+      ],
+      "keywords": ["latency", "slow", "slow response", "high response time", "p95", "p99", "performance degradation", "sluggish", "taking long"],
+      "diagnostic_checks": [
+        "Identify which endpoints are slow and since when using APM latency graphs (p50, p95, p99).",
+        "Compare current traffic volume with normal levels to check for a traffic spike.",
+        "Use distributed traces to find the slowest span: database, external gateway, cache, or application code.",
+        "Check host or container resources: CPU, memory, garbage-collection pauses, and thread-pool saturation.",
+        "Check whether latency began after a deployment or configuration change."
+      ],
+      "resolution_steps": [
+        "Share the slowest traces and the time window with L2 Application Support.",
+        "If resource saturation is confirmed, raise a capacity or scaling request with DevOps / Infrastructure.",
+        "If a slow database query is identified, follow KB-003 and involve the Database Team."
+      ],
+      "requires_approval": [
+        "Scaling infrastructure in production",
+        "Rolling back a deployment"
+      ],
+      "escalation": [
+        {"team": "L2 Application Support", "when": "p99 latency stays above the agreed SLO (for example 2 seconds) for more than 10 minutes."},
+        {"team": "DevOps / Infrastructure Team", "when": "CPU, memory, or node capacity is saturated."}
+      ],
+      "prerequisites": ["Access to APM dashboards and distributed tracing"],
+      "related_ids": ["KB-002", "KB-003"]
+    },
+    {
+      "id": "KB-006",
+      "title": "Service unavailable (HTTP 503) or service down",
+      "category": "Infrastructure",
+      "symptoms": [
+        "Clients receive HTTP 503 Service Unavailable",
+        "Health checks failing; load balancer shows no healthy targets",
+        "Pods in CrashLoopBackOff or instances repeatedly restarting",
+        "Uptime monitor reports the service as down"
+      ],
+      "keywords": ["503", "service unavailable", "service down", "outage", "health check failing", "crashloopbackoff", "no healthy upstream", "not reachable", "site down"],
+      "diagnostic_checks": [
+        "Check the load balancer target health and the number of healthy instances or pods.",
+        "Check orchestration events (for example Kubernetes pod events) for crashes, OOMKilled, or failed readiness probes.",
+        "Read the startup logs of failing instances for configuration or dependency errors.",
+        "Check for recent deployments, infrastructure changes, or certificate expiry (see KB-008).",
+        "Check whether planned maintenance is scheduled for this service."
+      ],
+      "resolution_steps": [
+        "If caused by a recent deployment, provide evidence to the release owner for a rollback decision.",
+        "If instances crash because a dependency is unavailable, follow the dependency's entry (KB-003, KB-007).",
+        "Open or join the incident bridge and post regular status updates when customer impact is confirmed."
+      ],
+      "requires_approval": [
+        "Restarting services or pods",
+        "Rolling back deployments",
+        "Scaling or replacing infrastructure"
+      ],
+      "escalation": [
+        {"team": "DevOps / Infrastructure Team", "when": "No healthy instances, pods crash-looping, or infrastructure-level failure."},
+        {"team": "L1 Operations / Command Center", "when": "A customer-facing payment service is down: raise a major incident."}
+      ],
+      "prerequisites": ["Read access to load balancer and orchestration dashboards"],
+      "related_ids": ["KB-001", "KB-008", "KB-012"]
+    },
+    {
+      "id": "KB-007",
+      "title": "Network connectivity or DNS resolution failure",
+      "category": "Network",
+      "symptoms": [
+        "Errors such as 'connection refused', 'no route to host', or 'host unreachable'",
+        "DNS errors such as 'unknown host', 'name or service not known', or NXDOMAIN",
+        "Service cannot reach a third-party gateway, bank, or internal dependency",
+        "Intermittent packet loss or connection resets between services"
+      ],
+      "keywords": ["network", "connectivity", "dns", "unknown host", "nxdomain", "unreachable", "no route to host", "packet loss", "connection reset", "firewall", "cannot reach"],
+      "diagnostic_checks": [
+        "Identify the source and destination host, port, and protocol that are failing.",
+        "Check DNS resolution of the destination hostname from an affected host (for example nslookup) and compare with an unaffected host.",
+        "Test basic reachability of the destination port (for example Test-NetConnection on Windows, or curl/telnet on Linux), if permitted by policy.",
+        "Check whether firewall rules, security groups, or IP allowlists changed recently.",
+        "Check the third party's status page or notifications if the destination is external."
+      ],
+      "resolution_steps": [
+        "Share the test results (source, destination, port, DNS output, timestamps) with the Network Team.",
+        "If an external partner is unreachable, inform the partner contact through the agreed channel and track their response.",
+        "Do not change firewall or DNS records yourself; raise a change request."
+      ],
+      "requires_approval": [
+        "Changing firewall rules, security groups, or routing",
+        "Changing DNS records"
+      ],
+      "escalation": [
+        {"team": "Network Team", "when": "DNS resolution fails, ports are blocked, or packet loss or connection resets are confirmed."}
+      ],
+      "prerequisites": ["Shell access to an affected host for read-only network tests"],
+      "related_ids": ["KB-002", "KB-003"]
+    },
+    {
+      "id": "KB-008",
+      "title": "SSL/TLS certificate expired or TLS handshake failure",
+      "category": "Security",
+      "symptoms": [
+        "Errors such as 'certificate has expired', 'SSL handshake failed', or 'PKIX path building failed'",
+        "Clients or partners suddenly cannot connect over HTTPS",
+        "Browser shows 'Your connection is not private'",
+        "Certificate-expiry monitoring alert triggered"
+      ],
+      "keywords": ["ssl", "tls", "certificate", "cert expired", "handshake failed", "https error", "pkix", "x509", "certificate expiry"],
+      "diagnostic_checks": [
+        "Check the certificate's expiry date and issuer for the affected endpoint (for example in the browser or with openssl s_client).",
+        "Confirm whether the failure is for inbound traffic (our certificate) or outbound calls (a partner's certificate).",
+        "Check whether the full certificate chain (intermediate certificates) is served correctly.",
+        "Check whether a certificate was recently renewed or replaced."
+      ],
+      "resolution_steps": [
+        "If our certificate has expired or is about to expire, escalate to the team that owns certificate management with the endpoint name and expiry date.",
+        "If a partner's certificate is the problem, notify the partner and track resolution.",
+        "Record the incident so expiry monitoring can be improved."
+      ],
+      "requires_approval": [
+        "Installing or replacing production certificates",
+        "Disabling certificate validation (should never be done as a workaround in production)"
+      ],
+      "escalation": [
+        {"team": "DevOps / Infrastructure Team", "when": "Our certificate is expired, missing intermediates, or needs urgent renewal."},
+        {"team": "Security / IAM Team", "when": "Certificate trust or key compromise concerns."}
+      ],
+      "prerequisites": ["Ability to inspect certificates of public endpoints"],
+      "related_ids": ["KB-004", "KB-006"]
+    },
+    {
+      "id": "KB-009",
+      "title": "Sudden spike in card transaction declines",
+      "category": "Payments",
+      "symptoms": [
+        "Decline rate is much higher than normal for card transactions",
+        "Many transactions fail with issuer response codes such as 91 (issuer unavailable) or 96 (system malfunction)",
+        "Declines concentrated on one bank, card network, BIN range, or merchant",
+        "Merchants report 'card declined' for cards that normally work"
+      ],
+      "keywords": ["decline", "declined", "card declined", "authorization failure", "issuer", "response code", "91", "96", "do not honor", "approval rate drop", "bin"],
+      "diagnostic_checks": [
+        "Compare the current approval or decline rate with the normal baseline for the same time window.",
+        "Break down declines by response code, issuer bank, card network, BIN range, and merchant to find concentration.",
+        "Check whether declines are genuine customer declines (for example insufficient funds) or technical declines (issuer unavailable, timeout, system malfunction).",
+        "Check connectivity and latency to the affected card network or acquirer (see KB-007 and KB-002).",
+        "Check for any notifications of maintenance or outage from the issuer or card network."
+      ],
+      "resolution_steps": [
+        "If declines are technical and concentrated on one issuer or network, escalate to Payments Operations with the breakdown data.",
+        "If declines are genuine customer declines (for example insufficient funds), no platform action is needed; inform the merchant.",
+        "Do not reprocess or force-approve transactions."
+      ],
+      "requires_approval": [
+        "Rerouting transactions to an alternate acquirer or network",
+        "Reprocessing or reversing transactions"
+      ],
+      "escalation": [
+        {"team": "Payments Operations Team", "when": "Technical decline rate exceeds the baseline significantly (for example double) for more than 10 minutes."},
+        {"team": "Network Team", "when": "Connectivity to the card network or acquirer is failing."}
+      ],
+      "prerequisites": ["Access to transaction analytics with masked card data"],
+      "related_ids": ["KB-002", "KB-007"]
+    },
+    {
+      "id": "KB-010",
+      "title": "Settlement or end-of-day batch job failed or delayed",
+      "category": "Payments",
+      "symptoms": [
+        "Scheduled settlement or end-of-day batch job shows status FAILED or is still running past its expected window",
+        "Settlement or reconciliation files are not generated or not sent to banks or merchants",
+        "Merchants report missing or delayed settlement",
+        "Job scheduler alert for a missed or failed run"
+      ],
+      "keywords": ["settlement", "batch job", "eod", "end of day", "reconciliation", "cron", "scheduler", "job failed", "file not generated", "payout delayed"],
+      "diagnostic_checks": [
+        "Check the job scheduler for the job status, start time, and exit code of the latest run.",
+        "Read the job logs for the step where it failed and the error message.",
+        "Check whether input files or upstream data were available on time.",
+        "Check dependencies used by the job: database (KB-003), file storage or disk space (KB-012), and SFTP or network connectivity (KB-007).",
+        "Confirm whether a partial output was produced, to avoid duplicate processing."
+      ],
+      "resolution_steps": [
+        "Capture the failure details (job name, run ID, failed step, error) and inform L2 Application Support.",
+        "Notify Payments Operations about potential settlement delays so merchants can be informed.",
+        "Do not re-run the job manually unless L2 confirms it is safe (risk of duplicate settlement)."
+      ],
+      "requires_approval": [
+        "Re-running or manually triggering a settlement job",
+        "Editing settlement files or data"
+      ],
+      "escalation": [
+        {"team": "L2 Application Support", "when": "Any failed settlement or end-of-day job run."},
+        {"team": "Payments Operations Team", "when": "Settlement will miss the agreed deadline or merchants are affected."}
+      ],
+      "prerequisites": ["Read access to the job scheduler and job logs"],
+      "related_ids": ["KB-003", "KB-007", "KB-012"]
+    },
+    {
+      "id": "KB-011",
+      "title": "Payment stuck in pending status or webhook not received",
+      "category": "Application",
+      "symptoms": [
+        "Payment status remains PENDING or PROCESSING for longer than expected",
+        "Merchant did not receive the payment success or failure webhook or callback",
+        "Customer was charged but the merchant order shows unpaid",
+        "Mismatch between the transaction status in our system and the merchant system"
+      ],
+      "keywords": ["pending", "stuck", "processing", "webhook", "callback", "notification not received", "status mismatch", "charged but not confirmed", "order unpaid"],
+      "diagnostic_checks": [
+        "Look up the transaction by ID and check its current status and status history.",
+        "Check webhook delivery logs: delivery attempts, merchant response codes, and retry schedule.",
+        "Check whether the merchant's webhook endpoint is reachable and returning success (2xx).",
+        "Check whether the final status from the bank or acquirer has been received.",
+        "Check the message queue or event backlog for delays in status-update processing."
+      ],
+      "resolution_steps": [
+        "If the webhook failed because the merchant endpoint returned errors, share the delivery logs with the merchant.",
+        "Advise the merchant to use the status-check API to confirm the final transaction status.",
+        "If many transactions are stuck, escalate to L2 Application Support with transaction IDs and timestamps."
+      ],
+      "requires_approval": [
+        "Manually changing a transaction status",
+        "Initiating refunds or reversals",
+        "Replaying events or webhooks in bulk"
+      ],
+      "escalation": [
+        {"team": "L2 Application Support", "when": "Multiple transactions are stuck, or the event or queue backlog keeps growing."},
+        {"team": "Payments Operations Team", "when": "Customers were charged but transactions remain unconfirmed beyond the agreed time."}
+      ],
+      "prerequisites": ["Access to the transaction lookup tool and webhook delivery logs"],
+      "related_ids": ["KB-002", "KB-009"]
+    },
+    {
+      "id": "KB-012",
+      "title": "Server disk space full or low disk space",
+      "category": "Infrastructure",
+      "symptoms": [
+        "Disk usage alert (for example above 90%) on a server or volume",
+        "Errors such as 'No space left on device' or 'disk full'",
+        "Application fails to write logs or files; batch jobs fail",
+        "Database or service stops accepting writes"
+      ],
+      "keywords": ["disk full", "disk space", "no space left on device", "storage full", "volume full", "low disk", "log files growing", "inode"],
+      "diagnostic_checks": [
+        "Check disk usage per mount or volume on the monitoring dashboard (or with df -h / Get-PSDrive if access is permitted).",
+        "Identify which directories are growing fastest (for example application logs, temp files, or backups).",
+        "Check whether log rotation or cleanup jobs have been running.",
+        "Check whether a recent change increased log verbosity (for example DEBUG logging enabled)."
+      ],
+      "resolution_steps": [
+        "Share disk usage details and the fastest-growing directories with DevOps / Infrastructure.",
+        "Request a review of log rotation and retention settings.",
+        "Do not delete files manually on production servers unless an approved cleanup procedure exists."
+      ],
+      "requires_approval": [
+        "Deleting or archiving files on production servers",
+        "Expanding volumes or changing storage configuration"
+      ],
+      "escalation": [
+        {"team": "DevOps / Infrastructure Team", "when": "Disk usage is above 90% or writes are failing."},
+        {"team": "Database Team", "when": "The affected disk hosts a database."}
+      ],
+      "prerequisites": ["Read access to infrastructure monitoring"],
+      "related_ids": ["KB-006", "KB-010"]
+    }
+  ]
+}
