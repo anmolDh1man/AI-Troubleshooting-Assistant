@@ -1,0 +1,9 @@
+# Python 3.12 — versions pinned from a verified install (scripts/check_setup.py passed)
+streamlit==1.66.1
+chromadb==1.5.9
+sentence-transformers==5.7.0
+torch==2.14.1
+python-dotenv==1.2.4
+
+# Testing
+pytest==9.1.1

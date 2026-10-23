@@ -1,0 +1,19 @@
+# Secrets and local config
+.env
+
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated vector store (rebuilt from data/knowledge_base.json)
+chroma_db/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
