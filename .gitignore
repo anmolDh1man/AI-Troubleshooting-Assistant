@@ -19,3 +19,5 @@ Thumbs.db
 .DS_Store
 # Personal presentation and interview preparation
 docs/
+# Generated presentation and interview preparation files
+presentation_output/
