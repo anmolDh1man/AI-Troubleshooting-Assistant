@@ -1,11 +1,13 @@
-"""Held-out evaluation of the full pipeline (real KB, real embeddings, real decision logic).
+"""End-to-end evaluation of the full pipeline (real KB, real embeddings, real decision logic).
 
-Run from the project root:  python -m tests.run_eval
-Writes results/eval_results.csv and results/eval_summary.md
+Run from the project root:
+    python -m tests.run_eval --tag my_run                                   # v1 cases (tests/eval_cases.json)
+    python -m tests.run_eval --cases tests/eval_cases_v2.json --tag v2_run  # v2 cases
 
-Use --tag to keep an earlier run (e.g. a committed baseline) untouched:
-    python -m tests.run_eval --tag after_e04_fix
-writes results/eval_results_after_e04_fix.csv and results/eval_summary_after_e04_fix.md
+Writes results/eval_results_<tag>.csv and results/eval_summary_<tag>.md.
+Existing result files are never overwritten unless --overwrite is given, so
+committed baselines (e.g. eval_results.csv, eval_results_after_e04_fix.csv)
+stay intact as historical evidence.
 """
 
 import argparse
@@ -13,12 +15,17 @@ import csv
 import json
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 from src.assistant import ANSWERED, LOW_CONFIDENCE, TroubleshootingAssistant
-from src.config import PROJECT_ROOT
+from src.config import PROJECT_ROOT, TOP_K
 from src.generator import AnswerGenerator
 from src.kb_loader import load_knowledge_base
 from src.retriever import Retriever
+from tests.eval_metrics import (
+    IN_KB, OUT_OF_KB, ZONE_COLUMNS, case_scope, false_confident_count, hit_at_k, reciprocal_rank,
+    retrieval_summary, zone_confusion,
+)
 
 CASES_PATH = PROJECT_ROOT / "tests" / "eval_cases.json"
 RESULTS_DIR = PROJECT_ROOT / "results"
@@ -55,8 +62,10 @@ def check_case(case: dict, response) -> list[str]:
     elif response.status == ANSWERED:
         failures.append("gave a confident answer for an issue that is not in the KB")
 
-    if case.get("expect_risk_warning") and not response.risk_warning:
+    if case.get("expect_risk_warning") is True and not response.risk_warning:
         failures.append("missing risky-action warning")
+    if case.get("expect_risk_warning") is False and response.risk_warning:
+        failures.append("unexpected risky-action warning")
 
     if response.answer:
         # Attribution: the answer must cite exactly the sources shown to the user.
@@ -75,70 +84,80 @@ def check_case(case: dict, response) -> list[str]:
     return failures
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--tag", help="suffix for output files, so earlier results are not overwritten")
-    args = parser.parse_args()
-    suffix = f"_{args.tag}" if args.tag else ""
-    csv_path = RESULTS_DIR / f"eval_results{suffix}.csv"
-    summary_path = RESULTS_DIR / f"eval_summary{suffix}.md"
-
-    cases = json.loads(CASES_PATH.read_text(encoding="utf-8"))["cases"]
-    retriever = Retriever(load_knowledge_base())
-    assistants = {
+def build_assistants(retriever) -> dict:
+    return {
         None: TroubleshootingAssistant(retriever),
         "broken_generator": TroubleshootingAssistant(retriever, generator=BrokenGenerator()),
         "broken_retriever": TroubleshootingAssistant(BrokenRetriever()),
     }
 
+
+def run_cases(cases: list[dict], assistants: dict, k: int = TOP_K) -> list[dict]:
+    """Run every case and return one result row per case (including retrieval metrics)."""
     rows = []
     for case in cases:
         query = LONG_INPUT if case["query"] == "LONG_INPUT" else case["query"]
         response = assistants[case.get("mode")].ask(query)
         failures = check_case(case, response)
-        top = response.sources[0] if response.sources else (response.candidates[0] if response.candidates else None)
+        ranked = response.sources + response.candidates
+        ranked_ids = [r.entry.id for r in ranked]
+        relevant = case.get("expected_sources") or []
+        top = ranked[0] if ranked else None
         rows.append({
             "id": case["id"],
             "category": case["category"],
+            "scope": case_scope(case),
             "query": case["query"],
             "expected_status": "|".join(case["expected_status"]),
             "actual_status": response.status,
-            "expected_sources": "|".join(case.get("expected_sources") or []) or "-",
+            "expected_sources": "|".join(relevant) or "-",
             "top_entry": top.entry.id if top else "-",
             "top_score": f"{top.score:.3f}" if top else "-",
+            "ranked_ids": "|".join(ranked_ids) or "-",
+            "hit_at_1": hit_at_k(ranked_ids, relevant, 1),
+            "hit_at_k": hit_at_k(ranked_ids, relevant, k),
+            "reciprocal_rank": round(reciprocal_rank(ranked_ids, relevant, k), 3),
             "risk_warning": bool(response.risk_warning),
             "generated_by": response.answer.generated_by if response.answer else "-",
             "result": "PASS" if not failures else "FAIL",
             "failure_reason": "; ".join(failures),
         })
+    return rows
 
-    print(f"{'id':<5}{'category':<25}{'status':<16}{'top':<8}{'score':<7}{'result':<6} query / reason")
-    for r in rows:
-        print(f"{r['id']:<5}{r['category']:<25}{r['actual_status']:<16}{r['top_entry']:<8}{r['top_score']:<7}{r['result']:<6} "
-              f"{r['query'][:55]}" + (f"\n{'':<67}-> {r['failure_reason']}" if r["failure_reason"] else ""))
 
+def summarize(rows: list[dict], cases_name: str, tag: str, k: int = TOP_K) -> list[str]:
+    """Markdown summary: pass rate, retrieval metrics, zone confusion matrix, failures."""
     by_category = defaultdict(lambda: [0, 0])
     for r in rows:
         by_category[r["category"]][0] += r["result"] == "PASS"
         by_category[r["category"]][1] += 1
     passed = sum(r["result"] == "PASS" for r in rows)
+    retrieval = retrieval_summary(rows, k)
+    matrix = zone_confusion(rows)
+    out_kb_total = sum(matrix[OUT_OF_KB].values())
 
-    in_kb = [r for r in rows if r["category"] in ("known_issue", "paraphrase", "paraphrase_hinglish")]
-    top1 = sum(r["top_entry"] in r["expected_sources"].split("|") for r in in_kb)
-    out_kb = [r for r in rows if r["category"].startswith("unsupported") or r["category"] in ("vague", "prompt_injection")]
-    rejected = sum(r["actual_status"] != ANSWERED for r in out_kb)
-    confident_wrong = [r for r in out_kb if r["actual_status"] == ANSWERED]
-
-    summary = [
+    return [
         "# Evaluation summary",
         "",
-        f"Run: {datetime.now():%Y-%m-%d %H:%M} · Tag: {args.tag or 'baseline'} · Cases: {len(rows)} · Generator: template (no LLM)",
+        f"Run: {datetime.now():%Y-%m-%d %H:%M} · Cases: `{cases_name}` ({len(rows)}) · Tag: {tag} · Generator: template (no LLM)",
         "",
         f"**Overall: {passed}/{len(rows)} passed**",
         "",
-        f"- Retrieval top-1 accuracy on in-KB queries: {top1}/{len(in_kb)}",
-        f"- Out-of-KB / vague queries NOT answered confidently: {rejected}/{len(out_kb)}",
-        f"- Confident answers to out-of-KB queries (hallucination risk): {len(confident_wrong)}",
+        f"## Retrieval (in-KB cases, k={k})",
+        "",
+        f"- Hit@1: {retrieval['hit_at_1']}/{retrieval['n']}",
+        f"- Hit@{k}: {retrieval[f'hit_at_{k}']}/{retrieval['n']}",
+        f"- MRR@{k}: {retrieval[f'mrr_at_{k}']}",
+        "",
+        "## Decision zones (actual status by scope)",
+        "",
+        "| Scope | " + " | ".join(ZONE_COLUMNS) + " |",
+        "|---|" + "---|" * len(ZONE_COLUMNS),
+        *[f"| {scope} | " + " | ".join(str(matrix[scope][c]) for c in ZONE_COLUMNS) + " |" for scope in (IN_KB, OUT_OF_KB)],
+        "",
+        f"- Confident answers to out-of-KB queries (hallucination risk): {false_confident_count(rows)}/{out_kb_total}",
+        "",
+        "## Pass rate by category",
         "",
         "| Category | Passed |",
         "|---|---|",
@@ -149,6 +168,33 @@ def main():
         *([f"- **{r['id']}** ({r['category']}) `{r['query'][:70]}`: {r['failure_reason']}" for r in rows if r["result"] == "FAIL"]
           or ["None."]),
     ]
+
+
+def main():
+    parser = argparse.ArgumentParser(description="End-to-end evaluation of the troubleshooting assistant")
+    parser.add_argument("--cases", default=str(CASES_PATH), help="evaluation cases JSON (default: v1 tests/eval_cases.json)")
+    parser.add_argument("--tag", help="suffix for output files, e.g. --tag v2_baseline")
+    parser.add_argument("--overwrite", action="store_true", help="allow replacing existing result files")
+    args = parser.parse_args()
+
+    suffix = f"_{args.tag}" if args.tag else ""
+    csv_path = RESULTS_DIR / f"eval_results{suffix}.csv"
+    summary_path = RESULTS_DIR / f"eval_summary{suffix}.md"
+    existing = [p for p in (csv_path, summary_path) if p.exists()]
+    if existing and not args.overwrite:
+        raise SystemExit(f"Refusing to overwrite {', '.join(p.name for p in existing)}. "
+                         "Use a new --tag (or --overwrite if you really mean it).")
+
+    cases_path = Path(args.cases)
+    cases = json.loads(cases_path.read_text(encoding="utf-8"))["cases"]
+    rows = run_cases(cases, build_assistants(Retriever(load_knowledge_base())))
+
+    print(f"{'id':<5}{'scope':<10}{'status':<16}{'top':<8}{'score':<7}{'result':<6} query / reason")
+    for r in rows:
+        print(f"{r['id']:<5}{r['scope']:<10}{r['actual_status']:<16}{r['top_entry']:<8}{r['top_score']:<7}{r['result']:<6} "
+              f"{r['query'][:55]}" + (f"\n{'':<52}-> {r['failure_reason']}" if r["failure_reason"] else ""))
+
+    summary = summarize(rows, cases_path.name, args.tag or "untagged")
     print("\n" + "\n".join(summary))
 
     RESULTS_DIR.mkdir(exist_ok=True)

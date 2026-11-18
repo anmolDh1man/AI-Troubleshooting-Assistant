@@ -1,0 +1,47 @@
+{
+  "description": "Phase 2D DEVELOPMENT-ONLY probes. Not a sealed evaluation set: these queries may be used during development to check the KB-003, KB-006 and KB-007 changes. They were chosen to cover the problem classes found in the V3 failure analysis without copying any V3 query. Fingerprinted (SHA-256) before any Phase 2D implementation. Fields: expected_top = the top source must be one of these entries (null = no in-KB entry is correct); forbidden_top = the top source must NOT be any of these; allowed_status = acceptable assistant statuses; expect_risk_warning = true/false, or null when either is acceptable.",
+  "probes": [
+    {"id": "D01", "group": "dns", "query": "EAI_AGAIN when the worker calls the bank API",
+     "expected_top": ["KB-007"], "forbidden_top": [], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "Transient DNS resolver error code."},
+    {"id": "D02", "group": "dns", "query": "curl: (6) Could not resolve host: acquirer.example",
+     "expected_top": ["KB-007"], "forbidden_top": [], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "curl DNS failure message with a hostname."},
+    {"id": "D03", "group": "dns", "query": "java.net.UnknownHostException: settlement-svc",
+     "expected_top": ["KB-007"], "forbidden_top": ["KB-010"], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "Java DNS exception; the service name 'settlement' must not pull the settlement-job entry."},
+    {"id": "D04", "group": "dns", "query": "Temporary failure in name resolution in container logs",
+     "expected_top": ["KB-007"], "forbidden_top": [], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "glibc resolver message."},
+
+    {"id": "D05", "group": "db_lock", "query": "deadlock detected on the ledger table",
+     "expected_top": ["KB-003"], "forbidden_top": [], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "Database deadlock."},
+    {"id": "D06", "group": "db_lock", "query": "Lock wait timeout exceeded; try restarting transaction",
+     "expected_top": ["KB-003"], "forbidden_top": ["KB-002"], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "MySQL error text. It is a reported error, not a request to restart anything, so ideally no risk warning; the word 'timeout' must not win over the lock meaning."},
+    {"id": "D07", "group": "db_lock", "query": "queries stuck waiting on a row lock",
+     "expected_top": ["KB-003"], "forbidden_top": ["KB-011"], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "Row-lock contention; 'stuck' must not pull the stuck-payment entry."},
+
+    {"id": "D08", "group": "regional_outage", "query": "whole availability zone is down for checkout",
+     "expected_top": ["KB-006"], "forbidden_top": [], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "Zone-wide outage described as a symptom."},
+    {"id": "D09", "group": "regional_outage", "query": "primary region outage, is DR failover needed?",
+     "expected_top": ["KB-006"], "forbidden_top": [], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": true,
+     "notes": "Region outage plus a question about a disruptive action (failover): a risk warning is appropriate."},
+
+    {"id": "D10", "group": "negative", "query": "merchant account locked after failed logins",
+     "expected_top": null, "forbidden_top": ["KB-003"], "allowed_status": ["answered", "low_confidence", "not_found"], "expect_risk_warning": false,
+     "notes": "Account lockout is an authentication matter (KB-004 or not covered); adding lock wording to KB-003 must not capture it."},
+    {"id": "D11", "group": "negative", "query": "Redis failover completed overnight",
+     "expected_top": null, "forbidden_top": [], "allowed_status": ["low_confidence", "not_found"], "expect_risk_warning": false,
+     "notes": "Out of KB scope and a completed event: must never be answered confidently, even after failover wording is added to KB-006."},
+    {"id": "D12", "group": "negative", "query": "traffic spike during the sale is slowing checkout",
+     "expected_top": ["KB-005"], "forbidden_top": ["KB-006"], "allowed_status": ["answered", "low_confidence"], "expect_risk_warning": false,
+     "notes": "Latency under load; regional-outage or traffic wording in KB-006 must not capture it."},
+    {"id": "D13", "group": "negative", "query": "404 not found on the refunds route",
+     "expected_top": null, "forbidden_top": [], "allowed_status": ["low_confidence", "not_found"], "expect_risk_warning": false,
+     "notes": "HTTP 404 is not covered by the KB: the Phase 2C uncovered-code rule must keep it from being answered confidently."}
+  ]
+}

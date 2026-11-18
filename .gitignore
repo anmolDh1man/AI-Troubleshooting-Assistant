@@ -1,5 +1,8 @@
-# Secrets and local config
+# Secrets and local config (any .env variant, e.g. .env.local or .env.production; the template is kept)
 .env
+.env.*
+!.env.example
+.streamlit/secrets.toml
 
 # Virtual environment
 .venv/
@@ -9,8 +12,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
-# Generated vector store (rebuilt from data/knowledge_base.json)
+# Generated vector store (rebuilt from data/knowledge_base.json), including folders moved aside as corrupt
 chroma_db/
+*.corrupt-*/
 
 # Editor / OS
 .vscode/

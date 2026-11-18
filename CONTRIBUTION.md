@@ -46,11 +46,44 @@ This project was built by me (Anmol Dhiman) with **Claude Code** (Anthropic's co
 
 **Not used:** no LLM API is called by the application. Answers are produced by a rule-based template from the retrieved knowledge-base entry and are labelled as such in the UI.
 
+## Upgrade work (Phases 1–4, branch `upgrade/phase-1`)
+
+After the original version, the project was upgraded in four phases with the same AI pair-programming setup.
+
+**My decisions**
+- Required a read-only audit and an explicit plan before each phase. I approved phases one at a time and allowed no extra sub-phases.
+- Set the evaluation rules:
+  - write a sealed V3 set before Phase 2, run it exactly once with pre-registered pass/fail criteria, and never use it for tuning;
+  - keep the V3 data private;
+  - never change thresholds or weaken tests and regression gates to improve scores;
+  - revert any change that causes a regression;
+  - report failures and limitations honestly; never fabricate results or claim independent validation.
+- Chose specific behaviours:
+  - input that mixes a prompt injection with a real question is rejected as a whole;
+  - a probe that could not be fixed safely (P18) stays a cautious possible match instead of being forced to pass;
+  - optional login must fail closed;
+  - a malformed secrets file must stop the app instead of silently disabling a required login.
+- Approved the production-readiness scope (Phase 4) and a final pre-GitHub audit. Decided not to rewrite published history.
+
+**Where Claude Code was used**
+- Implemented each phase:
+  - Phase 1: evaluation metrics and a regression gate;
+  - Phase 2: risk detection, input safety and HTTP-code matching;
+  - Phase 3: retrieval and safety improvements;
+  - Phase 4: configuration validation, safe errors, logging, rate limiting, health checks, optional OIDC login, Dockerfile, CI workflow and documentation.
+- Ran the tests and evaluations, and reported every regression and rejected change. For example, it rejected and reverted a retrieval change that made unrelated queries confident.
+
 ## How AI-generated work was checked
 
-- Every phase was verified by running it locally before committing: setup check, KB validation, retrieval calibration, unit tests, CLI runs, UI tests and the held-out evaluation.
-- Thresholds were set from measured score distributions and then checked on a separate held-out set. All results, including the two evaluation failures, are reported as measured.
-- All test results quoted in the README come from actual runs saved in `results/`.
+- The original version was verified by running each phase locally before committing: setup check, KB validation, retrieval calibration, unit tests, CLI runs, UI tests and the held-out evaluation.
+- In the upgrade, every change was checked locally before review. The checks were:
+  - the full automated test suite;
+  - a per-case comparison of the V1 and V2 evaluation sets against the previous results;
+  - the development probes, the calibration queries and the E04 regression test;
+  - for Phase 4, a live smoke test of the running app and its logs.
+- Thresholds were set from measured score distributions and then checked on a separate held-out set. All results, including failures, are reported as measured.
+- Evaluation and calibration results quoted in the README come from actual runs saved in `results/`. Automated test counts in the README come from the latest full test run; they are not saved as files.
+- Not verified: the Docker image has not been built (Docker was not available), and the CI workflow has not run on GitHub. No independent (V4) evaluation has been done.
 
 ## My Additional Contributions
 

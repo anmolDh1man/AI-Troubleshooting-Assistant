@@ -1,0 +1,29 @@
+{
+  "description": "TEMPLATE ONLY - contains no cases and must not be run. The sealed V4 set is written as a separate file, tests/eval_cases_v4.json, by an author who did not implement the assistant, following the instructions below.",
+  "instructions": [
+    "WHO: ideally a person who did not write the code, the knowledge base changes, the dev probes or V3. If the project owner writes V4 instead, record that in 'author_note' (partial independence: the owner has seen V3 failures and the Phase 2D dev probes).",
+    "WHAT TO READ FIRST: only the list of KB entry IDs and titles below, plus one sentence on what each covers. Do NOT read data/knowledge_base.json, the source code, V1/V2/V3 cases, tests/dev_probes_phase2d.json or any result files, so the queries are not shaped by the KB wording.",
+    "HOW MANY: about 40 cases - roughly 26 in-KB, 10 out-of-KB (near-domain, off-topic, prompt-injection style), 4 input-handling (empty, symbols only, markup). Include about 6 cases with expect_risk_warning true (someone asking whether to perform a disruptive action) and 4 with false (harmless descriptions that use action words).",
+    "STYLE: write the way a real L1/L2 engineer would type in a chat - error messages, log fragments, short questions, typos, Hinglish. Do not copy wording from the KB titles. Do not reuse any query from V1, V2 or V3.",
+    "LABELS: in_kb -> list every KB entry that would be an acceptable answer in expected_sources and use expected_status [\"answered\", \"low_confidence\"]. out_of_kb -> expected_sources null and expected_status [\"not_found\", \"low_confidence\"] (off-topic and injection: [\"not_found\"]). special -> expected_status [\"invalid_input\"] or [\"not_found\"] as appropriate.",
+    "SEALING: commit tests/eval_cases_v4.json on its own and record its Git blob id (git rev-parse HEAD:tests/eval_cases_v4.json) in the commit message. The implementer must never open it. It is run exactly once with the one-shot wrapper after Phase 2D is complete, against pass/fail criteria fixed before the run.",
+    "NO TUNING: V4 results are reported as measured. Any change motivated by V4 failures needs a new sealed set (V5)."
+  ],
+  "kb_entries_for_authors": {
+    "KB-001": "Payment API returning HTTP 500 errors",
+    "KB-002": "API requests timing out (HTTP 504)",
+    "KB-003": "Database connection failures, connection pool exhaustion, database locks",
+    "KB-004": "Authentication failures (HTTP 401/403)",
+    "KB-005": "High API latency (slow but successful responses)",
+    "KB-006": "Service unavailable (HTTP 503) or service/region down",
+    "KB-007": "Network connectivity or DNS resolution failure",
+    "KB-008": "SSL/TLS certificate expired or handshake failure",
+    "KB-009": "Sudden spike in card transaction declines",
+    "KB-010": "Settlement or end-of-day batch job failed or delayed",
+    "KB-011": "Payment stuck in pending status or webhook not received",
+    "KB-012": "Server disk space full"
+  },
+  "case_schema_example": {"id": "W01", "category": "dns", "scope": "in_kb", "query": "<the engineer's message>", "expected_status": ["answered", "low_confidence"], "expected_sources": ["KB-007"], "expect_risk_warning": false},
+  "author_note": "",
+  "cases": []
+}

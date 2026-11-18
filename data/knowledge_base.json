@@ -186,9 +186,10 @@
         "Clients receive HTTP 503 Service Unavailable",
         "Health checks failing; load balancer shows no healthy targets",
         "Pods in CrashLoopBackOff or instances repeatedly restarting",
-        "Uptime monitor reports the service as down"
+        "Uptime monitor reports the service as down",
+        "A whole region or availability zone is unavailable, so the service is down for all users there"
       ],
-      "keywords": ["503", "service unavailable", "service down", "outage", "health check failing", "crashloopbackoff", "no healthy upstream", "not reachable", "site down"],
+      "keywords": ["503", "service unavailable", "service down", "outage", "health check failing", "crashloopbackoff", "no healthy upstream", "not reachable", "site down", "region down", "regional outage", "availability zone outage", "zone outage"],
       "diagnostic_checks": [
         "Check the load balancer target health and the number of healthy instances or pods.",
         "Check orchestration events (for example Kubernetes pod events) for crashes, OOMKilled, or failed readiness probes.",
@@ -204,7 +205,8 @@
       "requires_approval": [
         "Restarting services or pods",
         "Rolling back deployments",
-        "Scaling or replacing infrastructure"
+        "Scaling or replacing infrastructure",
+        "Failing over to another region or shifting traffic between regions"
       ],
       "escalation": [
         {"team": "DevOps / Infrastructure Team", "when": "No healthy instances, pods crash-looping, or infrastructure-level failure."},
@@ -221,9 +223,10 @@
         "Errors such as 'connection refused', 'no route to host', or 'host unreachable'",
         "DNS errors such as 'unknown host', 'name or service not known', or NXDOMAIN",
         "Service cannot reach a third-party gateway, bank, or internal dependency",
-        "Intermittent packet loss or connection resets between services"
+        "Intermittent packet loss or connection resets between services",
+        "Name resolution errors such as 'could not resolve host', 'temporary failure in name resolution', UnknownHostException, ENOTFOUND or EAI_AGAIN"
       ],
-      "keywords": ["network", "connectivity", "dns", "unknown host", "nxdomain", "unreachable", "no route to host", "packet loss", "connection reset", "firewall", "cannot reach"],
+      "keywords": ["network", "connectivity", "dns", "unknown host", "nxdomain", "unreachable", "no route to host", "packet loss", "connection reset", "firewall", "cannot reach", "name resolution", "could not resolve host", "unknownhostexception", "enotfound", "eai_again", "getaddrinfo"],
       "diagnostic_checks": [
         "Identify the source and destination host, port, and protocol that are failing.",
         "Check DNS resolution of the destination hostname from an affected host (for example nslookup) and compare with an unaffected host.",
@@ -414,6 +417,40 @@
       ],
       "prerequisites": ["Read access to infrastructure monitoring"],
       "related_ids": ["KB-006", "KB-010"]
+    },
+    {
+      "id": "KB-013",
+      "title": "Database lock contention, deadlocks or long-running queries",
+      "category": "Database",
+      "symptoms": [
+        "Transactions or queries are blocked waiting on a lock held by another session",
+        "Database errors such as 'deadlock detected', 'Deadlock found when trying to get lock' or 'Lock wait timeout exceeded'",
+        "A long-running query or batch job is holding locks on a table and other queries are stuck behind it",
+        "Writes to one table hang or are slow while the database itself is up and reachable"
+      ],
+      "keywords": ["deadlock", "lock wait timeout", "blocking session", "blocked query", "table lock", "row lock", "long-running query", "lock contention"],
+      "diagnostic_checks": [
+        "Use the database monitoring tool (read-only views) to list blocking and blocked sessions and how long they have been waiting.",
+        "Identify the query, application, or batch job that holds the blocking lock and when it started.",
+        "Check whether a deployment, schema change, or scheduled batch job started around the same time.",
+        "Check how often deadlock or lock-timeout errors appear in the application logs and which tables are involved."
+      ],
+      "resolution_steps": [
+        "Share the blocking session details (query, start time, tables, affected services) with the Database Team for a decision.",
+        "If a batch or report job is holding the locks, inform its owning team and the Database Team before it is stopped.",
+        "Let the application retry deadlocked transactions only if the application is designed to do so; do not replay payments manually."
+      ],
+      "requires_approval": [
+        "Killing queries or terminating database sessions",
+        "Stopping or rescheduling batch jobs",
+        "Changing database lock or timeout settings"
+      ],
+      "escalation": [
+        {"team": "Database Team", "when": "Blocking locks, repeated deadlocks, or long-running queries are affecting live transactions."},
+        {"team": "L2 Application Support", "when": "The same application transaction repeatedly deadlocks, which may need a code fix."}
+      ],
+      "prerequisites": ["Read-only access to database monitoring dashboards"],
+      "related_ids": ["KB-003", "KB-010"]
     }
   ]
 }

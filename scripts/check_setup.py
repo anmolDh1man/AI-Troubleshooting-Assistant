@@ -5,7 +5,7 @@ from importlib.metadata import version
 
 print(f"Python: {sys.version.split()[0]}  ({sys.executable})")
 
-for pkg in ["streamlit", "chromadb", "sentence-transformers", "torch", "python-dotenv", "pytest"]:
+for pkg in ["streamlit", "chromadb", "sentence-transformers", "torch", "python-dotenv", "Authlib", "pytest"]:
     print(f"  {pkg:<22} {version(pkg)}")
 
 # 1. Embedding model (downloads ~90 MB on the first run)
