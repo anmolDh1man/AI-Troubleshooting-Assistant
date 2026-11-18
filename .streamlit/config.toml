@@ -1,7 +1,12 @@
 [server]
-# Only reachable from this machine (do not expose an internal ops tool on the network)
+# Only reachable from this machine (do not expose an internal ops tool on the network).
+# The Docker image overrides this with STREAMLIT_SERVER_ADDRESS=0.0.0.0 inside the container.
 address = "localhost"
 port = 8501
+
+[client]
+# Never show exception messages or tracebacks in the browser; details go to the logs only.
+showErrorDetails = "none"
 
 [browser]
 gatherUsageStats = false

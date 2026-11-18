@@ -1,9 +1,12 @@
 """Measure retrieval quality and similarity-score spread to choose a data-driven threshold.
 
-Run from the project root:  python -m scripts.calibrate_retrieval
-Writes results/retrieval_calibration.csv
+Run from the project root:  python -m scripts.calibrate_retrieval --tag my_run
+Writes results/retrieval_calibration_<tag>.csv (without --tag: results/retrieval_calibration.csv).
+An existing file is never overwritten unless --overwrite is given, so the committed
+calibration record stays intact as historical evidence.
 """
 
+import argparse
 import csv
 import json
 
@@ -12,10 +15,18 @@ from src.kb_loader import load_knowledge_base
 from src.retriever import Retriever
 
 QUERIES_PATH = PROJECT_ROOT / "scripts" / "calibration_queries.json"
-OUTPUT_PATH = PROJECT_ROOT / "results" / "retrieval_calibration.csv"
+RESULTS_DIR = PROJECT_ROOT / "results"
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Retrieval calibration on the labelled calibration queries")
+    parser.add_argument("--tag", help="suffix for the output file, e.g. --tag phase3")
+    parser.add_argument("--overwrite", action="store_true", help="allow replacing an existing result file")
+    args = parser.parse_args()
+    output_path = RESULTS_DIR / (f"retrieval_calibration_{args.tag}.csv" if args.tag else "retrieval_calibration.csv")
+    if output_path.exists() and not args.overwrite:
+        raise SystemExit(f"Refusing to overwrite {output_path.name}. Use a new --tag (or --overwrite if you really mean it).")
+
     queries = json.loads(QUERIES_PATH.read_text(encoding="utf-8"))["queries"]
     retriever = Retriever(load_knowledge_base())
 
@@ -55,12 +66,12 @@ def main():
     else:
         print("  Scores OVERLAP: no single threshold separates them perfectly; extra checks are needed.")
 
-    OUTPUT_PATH.parent.mkdir(exist_ok=True)
-    with OUTPUT_PATH.open("w", newline="", encoding="utf-8") as f:
+    RESULTS_DIR.mkdir(exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
-    print(f"\nSaved: {OUTPUT_PATH.relative_to(PROJECT_ROOT)}")
+    print(f"\nSaved: {output_path.relative_to(PROJECT_ROOT)}")
 
 
 if __name__ == "__main__":

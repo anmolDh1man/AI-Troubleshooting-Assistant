@@ -1,0 +1,63 @@
+# Continuous integration: automated tests, then a Docker build with a container health smoke test.
+name: CI
+
+on:
+  push:
+    branches: [master, "upgrade/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies (CPU-only PyTorch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1
+          pip install -r requirements-dev.txt
+
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-model-${{ hashFiles('src/config.py') }}
+
+      - name: Run tests
+        env:
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
+        run: python -m pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t ai-troubleshooting-assistant:ci .
+
+      - name: Start container and wait for the health endpoint
+        run: |
+          docker run -d --name app -p 8501:8501 ai-troubleshooting-assistant:ci
+          for attempt in $(seq 1 36); do
+            if curl -fsS http://localhost:8501/_stcore/health; then echo; echo "healthy"; exit 0; fi
+            sleep 5
+          done
+          docker logs app
+          exit 1
+
+      - name: Run application health checks inside the container
+        run: docker exec app python -m src.health
